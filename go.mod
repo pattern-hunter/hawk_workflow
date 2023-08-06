@@ -1,4 +1,4 @@
-module hawk_workflow
+module github.com/pattern-hunter/hawk_workflow/workflows
 
 go 1.18
 
