@@ -1,6 +1,7 @@
 package hawk_workflow
 
 import (
+	"fmt"
 	"os"
 	"os/signal"
 
@@ -10,8 +11,9 @@ import (
 
 type WorkflowCreateParams struct {
 	Namespace  string
-	MethodName string
+	MethodName func(job *work.Job)
 	Cron       string
+	RedisPort  string
 }
 
 type Workflow struct {
@@ -19,7 +21,7 @@ type Workflow struct {
 	enqueuer   *work.Enqueuer
 	workerPool *work.WorkerPool
 	namespace  string
-	methodName string
+	methodName func(job *work.Job)
 	cron       string
 }
 
@@ -29,7 +31,7 @@ type Context struct {
 func CreateNewWorkflow(params WorkflowCreateParams) *Workflow {
 	w := Workflow{}
 	w.namespace = params.Namespace
-	w = w.createRedisPool()
+	w = w.createRedisPool(params.RedisPort)
 	w = w.createEnqueuer()
 	w.methodName = params.MethodName
 	w = w.createWorkerPool()
@@ -37,14 +39,14 @@ func CreateNewWorkflow(params WorkflowCreateParams) *Workflow {
 	return &w
 }
 
-func (w Workflow) createRedisPool() Workflow {
+func (w Workflow) createRedisPool(port string) Workflow {
 	// You need an active redis connection
 	w.redisPool = &redis.Pool{
 		MaxActive: 5,
 		MaxIdle:   5,
 		Wait:      true,
 		Dial: func() (redis.Conn, error) {
-			return redis.Dial("tcp", ":6379")
+			return redis.Dial("tcp", fmt.Sprintf(":%s", port))
 		},
 	}
 	return w
@@ -60,9 +62,10 @@ func (w Workflow) createWorkerPool() Workflow {
 	return w
 }
 
-func (w Workflow) RunPeriodicWorkflow(methodName func(job *work.Job)) {
-	w.workerPool.PeriodicallyEnqueue(w.cron, w.methodName)
-	w.workerPool.Job(w.methodName, methodName)
+func (w Workflow) RunPeriodicWorkflow() {
+	methodNameString := fmt.Sprintf("%v", w.methodName)
+	w.workerPool.PeriodicallyEnqueue(w.cron, methodNameString)
+	w.workerPool.Job(methodNameString, w.methodName)
 	w.workerPool.Start()
 
 	// Wait for a signal to quit:
