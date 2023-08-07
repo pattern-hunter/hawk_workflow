@@ -60,10 +60,9 @@ func (w Workflow) createWorkerPool() Workflow {
 	return w
 }
 
-func (w Workflow) RunPeriodicWorkflow() {
-	methodMapWithoutContext := GenerateMethodMapWithoutContext()
+func (w Workflow) RunPeriodicWorkflow(methodName func(job *work.Job)) {
 	w.workerPool.PeriodicallyEnqueue(w.cron, w.methodName)
-	w.workerPool.Job(w.methodName, methodMapWithoutContext[w.methodName])
+	w.workerPool.Job(w.methodName, methodName)
 	w.workerPool.Start()
 
 	// Wait for a signal to quit:
